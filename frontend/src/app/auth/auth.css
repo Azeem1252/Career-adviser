@@ -1,0 +1,395 @@
+.auth-page {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background: #F8FAFC;
+    /* slate-50 */
+    padding: 2rem;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    color: #0F172A;
+    /* slate-900 */
+}
+
+.auth-page::before {
+    content: '';
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+    opacity: 0.03;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.container {
+    position: relative;
+    width: 100%;
+    max-width: 900px;
+    min-height: 600px;
+    border: 1px solid #E2E8F0;
+    /* slate-200 */
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    /* shadow-md */
+    border-radius: 0.75rem;
+    /* rounded-xl */
+    overflow: hidden;
+    background: #FFFFFF;
+    z-index: 10;
+}
+
+.container .form-box {
+    position: absolute;
+    top: 0;
+    width: 50%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    flex-direction: column;
+    z-index: 10;
+}
+
+.form-box.Login {
+    left: 0;
+    padding: 0 4rem;
+}
+
+.form-box.Login .animation {
+    transform: translateX(0%);
+    transition: 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+    opacity: 1;
+    transition-delay: calc(0.1s * var(--S));
+}
+
+.container.active .form-box.Login .animation {
+    transform: translateX(-120%);
+    opacity: 0;
+    filter: blur(4px);
+    transition-delay: calc(0.1s * var(--D));
+}
+
+.form-box.Register {
+    right: 0;
+    padding: 0 4rem;
+}
+
+.form-box.Register .animation {
+    transform: translateX(120%);
+    transition: 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+    opacity: 0;
+    filter: blur(4px);
+    transition-delay: calc(0.1s * var(--S));
+}
+
+.container.active .form-box.Register .animation {
+    transform: translateX(0%);
+    opacity: 1;
+    filter: blur(0px);
+    transition-delay: calc(0.1s * var(--li));
+}
+
+h2 {
+    font-size: 1.875rem;
+    text-align: center;
+    color: #0F172A;
+    margin-bottom: 2rem;
+    font-weight: 800;
+    letter-spacing: -0.025em;
+}
+
+.input-box {
+    position: relative;
+    width: 100%;
+    height: 50px;
+    margin-top: 1.25rem;
+}
+
+.input-box input {
+    width: 100%;
+    height: 100%;
+    background: #F8FAFC;
+    /* slate-50 */
+    border: 1px solid #E2E8F0;
+    /* slate-200 */
+    outline: none;
+    font-size: 0.875rem;
+    /* text-sm */
+    color: #334155;
+    /* slate-700 */
+    font-weight: 500;
+    border-radius: 0.75rem;
+    /* rounded-xl */
+    padding: 0 1rem 0 3rem;
+    transition: all 0.2s;
+}
+
+.input-box input:focus {
+    background: #FFFFFF;
+    border-color: #3B82F6;
+    /* blue-500 */
+    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+}
+
+.input-box label {
+    position: absolute;
+    top: -0.5rem;
+    left: 1rem;
+    font-size: 10px;
+    /* text-[10px] */
+    color: #3B82F6;
+    /* blue-500 */
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    /* tracking-widest */
+    background: #FFFFFF;
+    padding: 0 0.5rem;
+    border-radius: 4px;
+}
+
+.input-box .icon {
+    position: absolute;
+    top: 50%;
+    left: 1rem;
+    transform: translateY(-50%);
+    color: #94A3B8;
+    /* slate-400 */
+    font-size: 1.25rem;
+    transition: 0.2s;
+}
+
+.input-box input:focus~.icon {
+    color: #3B82F6;
+}
+
+.btn {
+    position: relative;
+    width: 100%;
+    height: 50px;
+    background: #2563EB;
+    border-radius: 0.75rem;
+    cursor: pointer;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: white;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    border: none;
+    transition: 0.3s;
+    box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.2);
+}
+
+.btn:hover {
+    background: #1D4ED8;
+    /* blue-700 */
+    transform: translateY(-2px);
+    box-shadow: 0 20px 25px -5px rgba(37, 99, 235, 0.3);
+}
+
+.regi-link {
+    font-size: 0.875rem;
+    text-align: center;
+    margin: 1.5rem 0;
+    color: #64748B;
+    position: relative;
+    z-index: 50;
+    font-weight: 500;
+}
+
+.regi-link a {
+    text-decoration: none;
+    color: #2563EB;
+    /* blue-600 */
+    font-weight: 700;
+    cursor: pointer;
+    transition: 0.3s;
+    position: relative;
+    z-index: 50;
+    pointer-events: auto;
+}
+
+.regi-link a:hover {
+    text-decoration: underline;
+    color: #1E40AF;
+    /* blue-800 */
+}
+
+.info-content {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    width: 50%;
+    display: flex;
+    justify-content: center;
+    flex-direction: column;
+    pointer-events: none;
+    z-index: 5;
+}
+
+.info-content.Login {
+    right: 0;
+    text-align: right;
+    padding: 0 4rem 4rem 10rem;
+}
+
+.info-content.Login .animation {
+    transform: translateX(0);
+    transition: 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+    transition-delay: calc(0.1s * var(--S));
+    opacity: 1;
+    filter: blur(0px);
+}
+
+.container.active .info-content.Login .animation {
+    transform: translateX(120%);
+    opacity: 0;
+    filter: blur(4px);
+    transition-delay: calc(0.1s * var(--D));
+}
+
+.info-content.Register {
+    left: 0;
+    text-align: left;
+    padding: 0 10rem 4rem 4rem;
+}
+
+.info-content.Register .animation {
+    transform: translateX(-120%);
+    transition: 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+    opacity: 0;
+    filter: blur(4px);
+    transition-delay: calc(0.1s * var(--S));
+}
+
+.container.active .info-content.Register .animation {
+    transform: translateX(0%);
+    opacity: 1;
+    filter: blur(0);
+    transition-delay: calc(0.1s * var(--li));
+}
+
+.info-content h2 {
+    text-transform: uppercase;
+    font-size: 3rem;
+    /* text-5xl equivalent */
+    line-height: 1;
+    color: #FFFFFF;
+    font-weight: 800;
+    /* font-extrabold */
+    margin-bottom: 1.5rem;
+    text-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.info-content p {
+    font-size: 0.875rem;
+    /* text-sm */
+    color: #E2E8F0;
+    /* slate-200 */
+    line-height: 1.6;
+    font-weight: 500;
+}
+
+/* Wavy Shapes - keeping animation logic but updating colors */
+.container .curved-shape {
+    position: absolute;
+    right: 0;
+    height: 750px;
+    width: 1100px;
+    top: -25px;
+    /* Clean Blue Gradient matching main app */
+    background: linear-gradient(135deg, #2563EB, #1D4ED8);
+    transform: rotate(10deg) skewY(40deg);
+    transform-origin: bottom right;
+    transition: 1.5s cubic-bezier(0.4, 0, 0.2, 1);
+    transition-delay: 1.6s;
+    z-index: 1;
+}
+
+.container.active .curved-shape {
+    transform: rotate(0deg) skewY(0deg);
+    transition-delay: 0.5s;
+    /* Clean Green/Emerald Gradient for Register mode active state if desired, or keep Blue */
+    background: linear-gradient(135deg, #2563EB, #1D4ED8);
+    /* Stick to Blue for consistency */
+}
+
+.container .curved-shape2 {
+    position: absolute;
+    left: 250px;
+    top: 100%;
+    height: 850px;
+    width: 1150px;
+    background: #F1F5F9;
+    /* slate-900 */
+    border-top: 3px solid #60A5FA;
+    /* blue-400 */
+    transform: rotate(0deg) skewY(0deg);
+    transform-origin: bottom left;
+    transition: 1.5s cubic-bezier(0.4, 0, 0.2, 1);
+    transition-delay: 0.5s;
+    z-index: 1;
+}
+
+.container.active .curved-shape2 {
+    transform: rotate(-11deg) skewY(-41deg);
+    transition-delay: 1.2s;
+    border-top: 3px solid #60A5FA;
+}
+
+.input-box .toggle-btn {
+    position: absolute;
+    top: 50%;
+    right: 1rem;
+    transform: translateY(-50%);
+    color: #94A3B8;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    z-index: 20;
+    transition: 0.2s;
+}
+
+.input-box .toggle-btn:hover {
+    color: #3B82F6;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+    .container {
+        min-height: auto;
+    }
+
+    .form-box {
+        position: relative !important;
+        width: 100% !important;
+        padding: 2rem !important;
+    }
+
+    .form-box.Register {
+        display: none;
+    }
+
+    .container.active .form-box.Login {
+        display: none;
+    }
+
+    .container.active .form-box.Register {
+        display: flex;
+    }
+
+    .info-content {
+        display: none !important;
+    }
+
+    .curved-shape,
+    .curved-shape2 {
+        display: none;
+    }
+
+    .form-box .animation {
+        transform: translateX(0%) !important;
+        opacity: 1 !important;
+        filter: blur(0px) !important;
+    }
+}

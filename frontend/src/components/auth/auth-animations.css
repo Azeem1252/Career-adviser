@@ -1,0 +1,170 @@
+/* Auth Container Animations */
+.auth-container {
+    position: relative;
+    transition: all 0.7s ease;
+}
+
+/* Form Boxes - Login */
+.form-box-login {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 50%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    flex-direction: column;
+    padding: 0 3rem;
+    z-index: 30;
+}
+
+.form-box-login>* {
+    transform: translateX(0%);
+    transition: 0.7s ease;
+    opacity: 1;
+    transition-delay: calc(0.1s * var(--delay, 0));
+}
+
+.auth-container.active .form-box-login>* {
+    transform: translateX(-120%);
+    opacity: 0;
+    filter: blur(10px);
+    transition-delay: calc(0.1s * var(--delay-out, 0));
+}
+
+/* Form Boxes - Register */
+.form-box-register {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 50%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    flex-direction: column;
+    padding: 0 3rem;
+    z-index: 30;
+}
+
+.form-box-register>* {
+    transform: translateX(120%);
+    transition: 0.7s ease;
+    opacity: 0;
+    filter: blur(10px);
+    transition-delay: calc(0.1s * var(--delay, 0));
+}
+
+.auth-container.active .form-box-register>* {
+    transform: translateX(0%);
+    opacity: 1;
+    filter: blur(0px);
+    transition-delay: calc(0.1s * var(--delay-in, 0));
+}
+
+/* Info Content - Login (Right side) */
+.info-content-login {
+    position: absolute;
+    top: 0;
+    right: 0;
+    height: 100%;
+    width: 50%;
+    display: flex;
+    justify-content: center;
+    flex-direction: column;
+    text-align: right;
+    padding: 0 3rem 3.75rem 9.375rem;
+    pointer-events: none;
+    z-index: 20;
+}
+
+.info-content-login>* {
+    transform: translateX(0);
+    transition: 0.7s ease;
+    opacity: 1;
+    filter: blur(0px);
+    transition-delay: calc(0.1s * var(--delay, 0));
+}
+
+.auth-container.active .info-content-login>* {
+    transform: translateX(120%);
+    opacity: 0;
+    filter: blur(10px);
+    transition-delay: calc(0.1s * var(--delay-out, 0));
+}
+
+/* Info Content - Register (Left side) */
+.info-content-register {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 50%;
+    display: flex;
+    justify-content: center;
+    flex-direction: column;
+    text-align: left;
+    padding: 0 9.375rem 3.75rem 3rem;
+    pointer-events: none;
+    z-index: 20;
+}
+
+.info-content-register>* {
+    transform: translateX(-120%);
+    transition: 0.7s ease;
+    opacity: 0;
+    filter: blur(10px);
+    transition-delay: calc(0.1s * var(--delay, 0));
+}
+
+.auth-container.active .info-content-register>* {
+    transform: translateX(0%);
+    opacity: 1;
+    filter: blur(0);
+    transition-delay: calc(0.1s * var(--delay-in, 0));
+}
+
+/* Diagonal Shape Animation */
+.diagonal-shape {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to bottom right, #c2410c, #ea580c, #f97316);
+    transition: clip-path 0.7s ease-in-out;
+    z-index: 1;
+}
+
+.diagonal-shape.login-mode {
+    clip-path: polygon(45% 0, 100% 0, 100% 100%, 65% 100%);
+}
+
+.diagonal-shape.register-mode {
+    clip-path: polygon(0 0, 55% 0, 35% 100%, 0% 100%);
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+
+    .form-box-login,
+    .form-box-register {
+        position: relative;
+        width: 100%;
+        padding: 2rem;
+    }
+
+    .info-content-login,
+    .info-content-register {
+        display: none;
+    }
+
+    .form-box-login>*,
+    .form-box-register>* {
+        transform: translateX(0%) !important;
+        opacity: 1 !important;
+        filter: blur(0px) !important;
+    }
+}
+
+/* Button pointer events fix */
+.info-content-login button,
+.info-content-register button {
+    pointer-events: auto;
+}
