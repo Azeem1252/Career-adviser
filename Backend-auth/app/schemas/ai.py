@@ -38,20 +38,32 @@ class CoverLetterResponse(BaseModel):
 
 # Roadmap Schemas
 class RoadmapStage(BaseModel):
-    name: str
+    title: str
     description: str
     skills: List[str]
     resources: List[str]
+    duration: Optional[str] = None
+    completed: bool = False
+    notes: Optional[str] = None
 
 class RoadmapRequest(BaseModel):
     current_profile: str
     target_career: str
 
 class RoadmapResponse(BaseModel):
+    id: Optional[int] = None
     title: str
     difficulty: str
     duration: str
     stages: List[RoadmapStage]
+    target_career: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+class TacticalAdviceResponse(BaseModel):
+    tactical_overview: str
+    immediate_actions: List[str]
+    common_pitfalls: List[str]
+    expert_tip: str
 
 # Interviewer Schemas
 class InterviewQuestion(BaseModel):

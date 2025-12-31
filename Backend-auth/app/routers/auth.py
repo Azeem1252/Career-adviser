@@ -62,7 +62,7 @@ async def get_me(current_user: User = Depends(get_current_user)):
     return current_user
 
 
-@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/register", response_model=Token, status_code=status.HTTP_201_CREATED)
 async def register(user_data: UserCreate, db: Session = Depends(get_db)):
     """Register a new user"""
     
@@ -74,6 +74,7 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
             detail="Email already registered"
         )
     
+
     # Create new user
     hashed_password = get_password_hash(user_data.password)
     db_user = User(
@@ -120,7 +121,14 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
         # Log error but don't fail registration
         print(f"Failed to send verification email: {e}")
     
-    return db_user
+    # Do not return tokens for automatic login if verification is required
+    return {
+        "access_token": "",
+        "refresh_token": "",
+        "token_type": "bearer",
+        "user": db_user,
+        "message": "Registration successful. Please check your email to verify your account."
+    }
 
 
 @router.post("/login", response_model=Token)
@@ -136,12 +144,11 @@ async def login(user_credentials: UserLogin, db: Session = Depends(get_db)):
             detail="Incorrect email or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    # Temporarily disabled for local development/testing
-    # if not user.is_verified:
-    #     raise HTTPException(
-    #         status_code=status.HTTP_403_FORBIDDEN,
-    #         detail="Email not verified. Please verify your email before logging in."
-    #     )
+    if not user.is_verified:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Email not verified. Please verify your email before logging in."
+        )
     
     if not user.is_active:
         raise HTTPException(
@@ -166,7 +173,8 @@ async def login(user_credentials: UserLogin, db: Session = Depends(get_db)):
     return {
         "access_token": access_token,
         "refresh_token": refresh_token,
-        "token_type": "bearer"
+        "token_type": "bearer",
+        "user": user
     }
 
 
@@ -370,6 +378,20 @@ async def forgot_password(request: EmailRequest, db: Session = Depends(get_db)):
     if not user:
         return {"message": "If the email exists, a password reset link has been sent"}
     
+    # Rate limiting: Check if a token was sent in the last 60 seconds
+    from datetime import datetime, timedelta
+    recent_token = db.query(EmailToken).filter(
+        EmailToken.email == user.email,
+        EmailToken.token_type == "password_reset",
+        EmailToken.created_at > datetime.utcnow() - timedelta(seconds=60)
+    ).first()
+    
+    if recent_token:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many requests. Please wait 60 seconds before requesting another link."
+        )
+    
     # Send password reset email
     try:
         from ..core.email import mail, create_message
@@ -461,3 +483,33 @@ async def reset_password(request: PasswordResetRequest, db: Session = Depends(ge
     db.commit()
     
     return {"message": "Password reset successfully"}
+
+
+from pydantic import BaseModel as PydanticBaseModel
+
+
+class ChangePasswordRequest(PydanticBaseModel):
+    current_password: str
+    new_password: str
+
+
+@router.post("/change-password")
+async def change_password(
+    request: ChangePasswordRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Change password for authenticated user"""
+    
+    # Verify current password
+    if not verify_password(request.current_password, current_user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect"
+        )
+    
+    # Update to new password
+    current_user.hashed_password = get_password_hash(request.new_password)
+    db.commit()
+    
+    return {"message": "Password changed successfully"}

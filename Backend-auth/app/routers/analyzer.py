@@ -201,7 +201,10 @@ async def generate_cover_letter(
         Generate the complete cover letter now as plain text:
         """
         
-        response = await ai_service.model.generate_content_async(prompt)
+        response = ai_service.client.models.generate_content(
+            model=ai_service.model_name,
+            contents=prompt
+        )
         content = response.text.strip()
         
         # Clean up any markdown that might have slipped through

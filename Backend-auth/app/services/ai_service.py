@@ -1,5 +1,6 @@
 from fastapi import HTTPException
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from typing import Dict, Any, List
 import json
 import re
@@ -8,10 +9,11 @@ from ..core.config import settings
 class AIService:
     def __init__(self):
         if settings.GEMINI_API_KEY:
-            genai.configure(api_key=settings.GEMINI_API_KEY)
-            self.model = genai.GenerativeModel(settings.AI_MODEL)
+            self.client = genai.Client(api_key=settings.GEMINI_API_KEY)
+            self.model_name = settings.AI_MODEL
         else:
-            self.model = None
+            self.client = None
+            self.model_name = None
 
     def _clean_json_response(self, text: str) -> Dict[str, Any]:
         """Extract and parse JSON from AI response"""
@@ -19,21 +21,33 @@ class AIService:
         cleaned_text = re.sub(r'```json\s*|\s*```', '', text).strip()
         try:
             return json.loads(cleaned_text)
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as e:
             # Fallback for minor formatting issues
             try:
                 # Try to find the first '{' and last '}'
                 start = cleaned_text.find('{')
                 end = cleaned_text.rfind('}') + 1
                 if start != -1 and end != 0:
-                    return json.loads(cleaned_text[start:end])
+                    json_str = cleaned_text[start:end]
+                    return json.loads(json_str)
             except:
                 pass
-            return {"error": "Failed to parse AI response", "raw": text}
+            
+            # Return the parsed JSON directly instead of wrapping in error
+            # Try one more time with the original text
+            try:
+                return json.loads(text)
+            except:
+                # If all parsing fails, return a proper error without the raw text
+                # which can cause frontend parsing issues
+                return {
+                    "error": "Failed to parse AI response",
+                    "message": "The AI response could not be parsed as valid JSON"
+                }
 
     async def analyze_resume(self, resume_text: str, target_job: str = None) -> Dict[str, Any]:
         """Analyze resume for gaps and improvements"""
-        if not self.model:
+        if not self.client:
             return {"error": "AI service not configured"}
 
         prompt = f"""
@@ -122,7 +136,10 @@ class AIService:
 
         try:
             print("Sending resume to AI for analysis...")
-            response = await self.model.generate_content_async(prompt)
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=prompt
+            )
             print(f"AI Response received - Length: {len(response.text)} characters")
             
             result = self._clean_json_response(response.text)
@@ -155,7 +172,7 @@ class AIService:
 
     async def generate_career_roadmap(self, current_profile: str, target_career: str) -> Dict[str, Any]:
         """Generate a personalized career roadmap"""
-        if not self.model:
+        if not self.client:
             return {"error": "AI service not configured"}
 
         prompt = f"""
@@ -170,7 +187,7 @@ class AIService:
             "duration": "Realistic timeframe (e.g., '6-12 months', '1-2 years')",
             "stages": [
                 {{
-                    "name": "Stage name (e.g., 'Foundation Building', 'Skill Acquisition', 'Portfolio Development')",
+                    "title": "Stage title (e.g., 'Foundation Building', 'Skill Acquisition', 'Portfolio Development')",
                     "description": "Detailed 2-3 sentence description of what this stage entails and why it's important",
                     "skills": [
                         "Specific skill 1 with context (e.g., 'Python programming - focus on data structures and algorithms')",
@@ -196,12 +213,38 @@ class AIService:
         - Make the description inspiring but realistic
         """
 
-        response = await self.model.generate_content_async(prompt)
-        return self._clean_json_response(response.text)
+        try:
+            print(f"Generating roadmap for: {target_career}")
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=prompt
+            )
+            print(f"Roadmap response received - Length: {len(response.text)} characters")
+            return self._clean_json_response(response.text)
+        except Exception as e:
+            error_message = str(e).lower()
+            print(f"AI Service Error in generate_career_roadmap: {type(e).__name__}: {str(e)}")
+            
+            # Check for rate limit errors
+            if "429" in str(e) or "quota" in error_message or "rate limit" in error_message or "resource exhausted" in error_message:
+                return {
+                    "error": "Rate limit exceeded. Please wait a moment and try again.",
+                    "error_type": "rate_limit"
+                }
+            elif "api key" in error_message or "authentication" in error_message:
+                return {
+                    "error": "API authentication failed. Please check your Gemini API key configuration.",
+                    "error_type": "auth_error"
+                }
+            else:
+                return {
+                    "error": f"Roadmap generation failed: {str(e)}",
+                    "error_type": "general_error"
+                }
 
     async def generate_interview_questions(self, job_title: str, level: str = "Mid", count: int = 5) -> Dict[str, Any]:
         """Generate mock interview questions for a specific role"""
-        if not self.model:
+        if not self.client:
             return {"error": "AI service not configured"}
 
         prompt = f"""
@@ -226,13 +269,16 @@ class AIService:
         - Cover different aspects: technical skills, problem-solving, communication, past experience
         """
 
-        response = await self.model.generate_content_async(prompt)
+        response = self.client.models.generate_content(
+            model=self.model_name,
+            contents=prompt
+        )
         return self._clean_json_response(response.text)
     
     
     async def evaluate_interview_answer(self, question: str, answer: str, job_title: str = "") -> Dict[str, Any]:
         """Evaluate an interview answer and provide feedback"""
-        if not self.model:
+        if not self.client:
             return {"error": "AI service not configured"}
 
         prompt = f"""
@@ -267,12 +313,15 @@ class AIService:
         - The sample answer should demonstrate best practices with proper structure
         """
 
-        response = await self.model.generate_content_async(prompt)
+        response = self.client.models.generate_content(
+            model=self.model_name,
+            contents=prompt
+        )
         return self._clean_json_response(response.text)
 
     async def discover_careers(self, skills: List[str], interests: List[str]) -> List[Dict[str, Any]]:
         """Recommend career paths based on skills and interests"""
-        if not self.model:
+        if not self.client:
             return []
 
         prompt = f"""
@@ -286,13 +335,16 @@ class AIService:
         - growth_potential: 'High', 'Medium', or 'Stable'
         """
 
-        response = await self.model.generate_content_async(prompt)
+        response = self.client.models.generate_content(
+            model=self.model_name,
+            contents=prompt
+        )
         result = self._clean_json_response(response.text)
         return result if isinstance(result, list) else []
 
     async def analyze_market_trends(self, sector: str) -> Dict[str, Any]:
         """Analyze current market trends for a given sector"""
-        if not self.model:
+        if not self.client:
             return {}
 
         prompt = f"""
@@ -306,12 +358,15 @@ class AIService:
         - top_companies: [list of companies]
         """
 
-        response = await self.model.generate_content_async(prompt)
+        response = self.client.models.generate_content(
+            model=self.model_name,
+            contents=prompt
+        )
         return self._clean_json_response(response.text)
 
     async def analyze_career_assessment(self, responses: Dict[str, Any]) -> Dict[str, Any]:
         """Analyze career assessment responses and provide career recommendations"""
-        if not self.model:
+        if not self.client:
             return {"error": "AI service not configured"}
 
         # Extract key information from responses
@@ -409,7 +464,10 @@ class AIService:
         """
 
         try:
-            response = await self.model.generate_content_async(prompt)
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=prompt
+            )
             return self._clean_json_response(response.text)
         except Exception as e:
             print(f"Career assessment analysis error: {e}")
@@ -418,5 +476,53 @@ class AIService:
                 "error_type": "ai_error",
                 "message": str(e)
             }
+
+    async def generate_tactical_advice(self, current_profile: str, target_career: str, stage_title: str, stage_description: str) -> Dict[str, Any]:
+        """Generate personalized tactical advice for a specific roadmap stage"""
+        if not self.client:
+            return {"error": "AI service not configured"}
+
+        prompt = f"""
+        You are an elite career strategist. Provide personalized TACTICAL ADVICE for this specific roadmap stage:
+        
+        CONTEXT:
+        Candidate Current Profile: {current_profile}
+        Target Career: {target_career}
+        Stage Title: {stage_title}
+        Stage Description: {stage_description}
+        
+        Provide high-level, actionable, and specific tactical advice in JSON format:
+        {{
+            "tactical_overview": "A brief strategic overview of why this stage is critical",
+            "immediate_actions": [
+                "Specific action 1 (e.g., 'Optimize your GitHub with 3 projects using X')",
+                "Specific action 2",
+                "3-4 prioritized actions"
+            ],
+            "common_pitfalls": [
+                "Pitfall 1 to avoid during this stage",
+                "Pitfall 2 to avoid",
+                "2-3 warnings"
+            ],
+            "expert_tip": "A 'pro-tip' that only a senior professional in this field would know"
+        }}
+        
+        CRITICAL RULES:
+        - DO NOT use markdown formatting
+        - Be extremely specific to the {target_career} field
+        - Ensure the advice bridges the gap between the {current_profile} and the stage requirements
+        - Return valid JSON only
+        """
+
+        try:
+            print(f"Generating tactical advice for: {stage_title}")
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=prompt
+            )
+            return self._clean_json_response(response.text)
+        except Exception as e:
+            print(f"Tactical advice error: {e}")
+            return {"error": "Failed to generate tactics", "message": str(e)}
 
 ai_service = AIService()

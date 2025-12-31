@@ -33,7 +33,10 @@ async def match_careers(
         - growth_potential: (High/Medium/Low)
         """
         
-        response = await ai_service.model.generate_content_async(prompt)
+        response = ai_service.client.models.generate_content(
+            model=ai_service.model_name,
+            contents=prompt
+        )
         text = response.text
         import re
         match = re.search(r'\[.*\]', text, re.DOTALL)
@@ -77,7 +80,10 @@ async def get_market_trends(
         - salary_range: (e.g., "$120k - $300k")
         """
         
-        response = await ai_service.model.generate_content_async(prompt)
+        response = ai_service.client.models.generate_content(
+            model=ai_service.model_name,
+            contents=prompt
+        )
         text = response.text
         import re
         match = re.search(r'\{.*\}', text, re.DOTALL)

@@ -66,6 +66,8 @@ class UserResponse(BaseModel):
     progress: int = 0
     profile_summary: Optional[str] = None
     avatar_url: Optional[str] = None
+    onboarded: bool = False
+    career_preferences: Optional[dict] = None
     projects: List[ProjectResponse] = []
     certifications: List[CertificationResponse] = []
     created_at: datetime

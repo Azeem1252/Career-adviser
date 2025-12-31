@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from .core.config import settings
 from .database import engine, Base
-from .routers import auth, saved_runs, careers, analyzer, interviewer, roadmaps, users, jobs, resources, assessment
+from .routers import auth, saved_runs, careers, analyzer, interviewer, roadmaps, users, assessment, job_tracker
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -33,6 +33,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 # Include routers
@@ -43,9 +44,8 @@ app.include_router(analyzer.router)
 app.include_router(interviewer.router)
 app.include_router(roadmaps.router)
 app.include_router(users.router)
-app.include_router(jobs.router)
-app.include_router(resources.router)
 app.include_router(assessment.router)
+app.include_router(job_tracker.router)
 
 # Mount uploads directory to serve profile images
 if not os.path.exists("uploads"):
