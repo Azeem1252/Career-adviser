@@ -9,8 +9,6 @@ const api = axios.create({
     },
     timeout: 90000, // 90 seconds (increased for AI operations)
 });
-
-// Request interceptor to add auth token
 api.interceptors.request.use(
     (config) => {
         const token = localStorage.getItem('access_token');
@@ -36,6 +34,12 @@ api.interceptors.response.use(
             const isAuthRequest = originalRequest.url?.includes('/auth/login') || originalRequest.url?.includes('/auth/register');
             const isAuthPage = typeof window !== 'undefined' && (window.location.pathname.includes('/auth/login') || window.location.pathname.includes('/auth/register'));
 
+            // Public pages that should never redirect to login
+            const publicPaths = ['/', '/careers', '/analyzer'];
+            const isPublicPage = typeof window !== 'undefined' && publicPaths.some(path =>
+                window.location.pathname === path || window.location.pathname === ''
+            );
+
             if (isAuthRequest || isAuthPage) {
                 return Promise.reject(error);
             }
@@ -59,20 +63,23 @@ api.interceptors.response.use(
 
                     return api(originalRequest);
                 } catch (refreshError) {
-                    // Refresh failed, clear tokens and redirect to login
+                    // Refresh failed, clear tokens
                     localStorage.removeItem('access_token');
                     localStorage.removeItem('refresh_token');
 
-                    if (typeof window !== 'undefined') {
+                    // Only redirect to login from protected pages
+                    if (typeof window !== 'undefined' && !isPublicPage) {
                         window.location.href = '/auth/login';
                     }
 
                     return Promise.reject(refreshError);
                 }
             } else {
-                // No refresh token, clear and redirect to login
+                // No refresh token, clear tokens
                 localStorage.removeItem('access_token');
-                if (typeof window !== 'undefined') {
+
+                // Only redirect to login from protected pages
+                if (typeof window !== 'undefined' && !isPublicPage) {
                     window.location.href = '/auth/login';
                 }
             }

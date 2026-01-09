@@ -18,34 +18,22 @@ async def match_careers(
 ):
     """Match user skills and interests to potential career paths"""
     try:
-        # Construct current profile for AI
-        current_profile = f"Skills: {', '.join(request.skills)}. Interests: {', '.join(request.interests)}. Experience Level: {request.experience_level}"
+        recommendations = await ai_service.discover_careers(request.skills, request.interests)
         
-        # We'll use a specific prompt for matching
-        prompt = f"""
-        Based on the following profile, recommend 3 career paths.
-        Profile: {current_profile}
+        if isinstance(recommendations, dict) and "error" in recommendations:
+            error_msg = recommendations.get("error", "Failed to match careers")
+            
+            if error_msg == "GIBBERISH_INPUT":
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Please provide valid skills and interests. Random characters are not allowed."
+                )
+            
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=error_msg
+            )
         
-        Provide the output as a JSON array of objects with keys:
-        - title: Career Title
-        - match_percentage: (0-100)
-        - reason: Brief reason why it matches the skills/interests
-        - growth_potential: (High/Medium/Low)
-        """
-        
-        response = ai_service.client.models.generate_content(
-            model=ai_service.model_name,
-            contents=prompt
-        )
-        text = response.text
-        import re
-        match = re.search(r'\[.*\]', text, re.DOTALL)
-        if match:
-            recommendations = json.loads(match.group())
-        else:
-            recommendations = json.loads(text)
-        
-        # Save matching result
         saved_run = SavedRun(
             user_id=current_user.id,
             title="Career Match Analysis",
@@ -57,6 +45,8 @@ async def match_careers(
         db.refresh(saved_run)
         
         return recommendations
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -70,29 +60,25 @@ async def get_market_trends(
 ):
     """Get AI-driven market trends for a specific industry"""
     try:
-        prompt = f"""
-        Analyze current market trends for the {industry} industry.
-        Provide a detailed report in JSON format with exactly these keys:
-        - industry: The name of the industry
-        - growth_rate: (e.g., "+15% YoY")
-        - top_skills: List of 3 objects with keys [name, growth, demand_index (0-100)]
-        - remote_availability: (High/Medium/Low)
-        - salary_range: (e.g., "$120k - $300k")
-        """
+        trends = await ai_service.analyze_market_trends(industry)
         
-        response = ai_service.client.models.generate_content(
-            model=ai_service.model_name,
-            contents=prompt
-        )
-        text = response.text
-        import re
-        match = re.search(r'\{.*\}', text, re.DOTALL)
-        if match:
-            trends = json.loads(match.group())
-        else:
-            trends = json.loads(text)
+        if isinstance(trends, dict) and "error" in trends:
+            error_msg = trends.get("error", "Failed to analyze trends")
+            
+            if error_msg == "GIBBERISH_INPUT":
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Please provide a valid industry name."
+                )
+            
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=error_msg
+            )
             
         return trends
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

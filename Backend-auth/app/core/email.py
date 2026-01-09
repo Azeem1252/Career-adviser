@@ -1,16 +1,13 @@
 from fastapi_mail import FastMail, ConnectionConfig, MessageSchema, MessageType
-from .config import settings  # Use initialized settings object instead of Config class
+from .config import settings
 from pathlib import Path
 import logging
 
 logger = logging.getLogger(__name__)
 BASE_DIR = Path(__file__).resolve().parent
 
-# Use settings object for consistent configuration loading
-# Initialize mail configuration only if valid credentials are provided
 mail = None
 try:
-    # Check if mail credentials are configured (not placeholder values)
     if (settings.MAIL_USERNAME and 
         settings.MAIL_PASSWORD and 
         'your-email' not in settings.MAIL_USERNAME.lower() and
@@ -37,17 +34,7 @@ except Exception as e:
     mail = None
 
 def create_message(recipients: list[str], subject: str, body: str) -> MessageSchema:
-    """
-    Create an email message with HTML body.
-    
-    Args:
-        recipients: List of recipient email addresses
-        subject: Email subject line
-        body: HTML email body content
-    
-    Returns:
-        MessageSchema object ready to be sent via mail.send_message()
-    """
+    """Create an email message with HTML body."""
     return MessageSchema(
         recipients=recipients, 
         subject=subject, 

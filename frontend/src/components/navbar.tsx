@@ -32,14 +32,18 @@ export const Navbar = () => {
     }, [pathname]);
 
     const publicLinks = [
-        { name: 'Careers', href: '/careers' },
+        { name: 'Dashboard', href: '/dashboard' },
         { name: 'Analyzer', href: '/analyzer' },
+        { name: 'Assessment', href: '/assessment' },
+        { name: 'Careers', href: '/careers' },
+        { name: 'Interviewer', href: '/interviewer' },
+        { name: 'Roadmaps', href: '/roadmaps' },
     ];
 
     const protectedLinks = [
         { name: 'Dashboard', href: '/dashboard' },
         { name: 'Analyzer', href: '/analyzer' },
-        { name: 'Skill Assessment', href: '/assessment' },
+        { name: 'Assessment', href: '/assessment' },
         { name: 'Careers', href: '/careers' },
         { name: 'Cover Letter', href: '/cover-letter' },
         { name: 'Interviewer', href: '/interviewer' },
@@ -66,7 +70,7 @@ export const Navbar = () => {
                             <BrainCircuit className="text-white w-[20px] h-[20px]" />
                         </div>
                         <span className="text-[24px] font-semibold tracking-tight text-slate-900">
-                            CarreAdviser<span className="text-primary">.</span>
+                            CarreAdviser<span className="text-blue-600">.</span>
                         </span>
                     </Link>
 
@@ -77,8 +81,8 @@ export const Navbar = () => {
                                 key={link.name}
                                 href={link.href}
                                 className={cn(
-                                    "text-sm font-semibold transition-all hover:text-primary",
-                                    pathname === link.href ? "text-primary" : "text-slate-600"
+                                    "text-sm font-semibold transition-all hover:text-blue-600",
+                                    pathname === link.href ? "text-blue-600" : "text-slate-600"
                                 )}
                             >
                                 {link.name}
@@ -88,24 +92,20 @@ export const Navbar = () => {
 
                     <div className="flex items-center gap-3">
 
-                        <div className="hidden md:flex items-center">
-                            {isAuthenticated ? (
-                                <UserMenu />
-                            ) : (
-                                <div className="flex items-center gap-2">
-                                    <Link href="/auth/login">
-                                        <button className="px-5 py-2 rounded-xl text-slate-600 font-bold text-sm hover:text-primary transition-colors">
-                                            Log in
-                                        </button>
-                                    </Link>
-                                    <Link href="/auth/register">
-                                        <button className="px-6 py-2.5 rounded-xl bg-primary text-white font-bold text-sm shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all">
-                                            Sign up
-                                        </button>
-                                    </Link>
-                                </div>
-                            )}
-                        </div>
+                        {isAuthenticated ? (
+                            <UserMenu />
+                        ) : (
+                            <div className="hidden lg:flex items-center gap-2">
+                                <Link href="/auth/login" className="text-sm font-semibold text-slate-600 hover:text-blue-600 transition-colors">
+                                    Log in
+                                </Link>
+                                <Link href="/auth/register">
+                                    <button className="px-4 py-2 rounded-xl bg-primary text-white text-sm font-semibold shadow-lg shadow-primary/20 hover:bg-blue-700 transition-colors">
+                                        Sign up
+                                    </button>
+                                </Link>
+                            </div>
+                        )}
 
                         <button
                             className="lg:hidden p-2.5 rounded-xl border border-slate-200 bg-white"

@@ -81,9 +81,10 @@ export default function RoadmapsPage() {
             setRoadmaps([newRoadmap, ...roadmaps]);
             setSelectedRoadmap(newRoadmap);
             success("Strategic roadmap generated.");
-        } catch (err) {
+        } catch (err: any) {
             console.error(err);
-            toastError("Roadmap synthesis failed.");
+            const message = err.response?.data?.detail || "Roadmap synthesis failed.";
+            toastError(message);
         } finally {
             setGenerating(false);
         }

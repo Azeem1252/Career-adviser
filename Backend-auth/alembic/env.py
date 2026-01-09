@@ -18,6 +18,10 @@ if config.config_file_name is not None:
 # for 'autogenerate' support
 from app.database import Base
 from app.models.user import User, RefreshToken, EmailToken, RateLimitLog, SavedRun
+from app.core.config import settings
+
+# Set the database URL from app settings
+config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
 
 target_metadata = Base.metadata
 

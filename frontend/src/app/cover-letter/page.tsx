@@ -63,9 +63,10 @@ export default function CoverLetterPage() {
             });
             setContent(result.content);
             success("Cover letter generated successfully.");
-        } catch (err) {
+        } catch (err: any) {
             console.error(err);
-            toastError("Failed to generate cover letter.");
+            const message = err.response?.data?.detail || "Failed to generate cover letter.";
+            toastError(message);
         } finally {
             setGenerating(false);
         }

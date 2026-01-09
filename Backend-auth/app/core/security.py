@@ -7,7 +7,6 @@ from .config import settings
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a password against a hash"""
-    # bcrypt has a 72-byte limit, truncate to avoid library errors
     password_bytes = plain_password[:72].encode('utf-8')
     hashed_bytes = hashed_password.encode('utf-8')
     return bcrypt.checkpw(password_bytes, hashed_bytes)
@@ -15,7 +14,6 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def get_password_hash(password: str) -> str:
     """Hash a password"""
-    # bcrypt has a 72-byte limit, truncate to avoid library errors
     password_bytes = password[:72].encode('utf-8')
     return bcrypt.hashpw(password_bytes, bcrypt.gensalt()).decode('utf-8')
 

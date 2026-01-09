@@ -17,14 +17,11 @@ class AIService:
 
     def _clean_json_response(self, text: str) -> Dict[str, Any]:
         """Extract and parse JSON from AI response"""
-        # Remove markdown code blocks if present
         cleaned_text = re.sub(r'```json\s*|\s*```', '', text).strip()
         try:
             return json.loads(cleaned_text)
         except json.JSONDecodeError as e:
-            # Fallback for minor formatting issues
             try:
-                # Try to find the first '{' and last '}'
                 start = cleaned_text.find('{')
                 end = cleaned_text.rfind('}') + 1
                 if start != -1 and end != 0:
@@ -33,13 +30,9 @@ class AIService:
             except:
                 pass
             
-            # Return the parsed JSON directly instead of wrapping in error
-            # Try one more time with the original text
             try:
                 return json.loads(text)
             except:
-                # If all parsing fails, return a proper error without the raw text
-                # which can cause frontend parsing issues
                 return {
                     "error": "Failed to parse AI response",
                     "message": "The AI response could not be parsed as valid JSON"
@@ -53,8 +46,12 @@ class AIService:
         prompt = f"""
         Perform a comprehensive professional resume analysis.
         {f"Target Job/Role: {target_job}" if target_job else "Provide a general career analysis across multiple dimensions."}
-        
-        Analyze the following resume and provide detailed feedback in JSON format:
+        Prompt:
+        VALIDATION RULE:
+        - If the provided Resume Text or Job Description appears to be random sequences of characters, gibberish, or nonsensical text (e.g., 'ksdfj', 'asdf', '12345'), you MUST NOT perform an analysis.
+        - Instead, return a JSON object with this exact structure: {{"error": "GIBBERISH_INPUT", "message": "Please provide a valid resume and job description."}}
+
+        Analyze the following resume text and provide a detailed JSON response.
         
         {{
             "overall_score": 85,
@@ -140,24 +137,55 @@ class AIService:
                 model=self.model_name,
                 contents=prompt
             )
-            print(f"AI Response received - Length: {len(response.text)} characters")
             
-            result = self._clean_json_response(response.text)
+            try:
+                content = response.text
+                if not content:
+                    if response.candidates and response.candidates[0].content.parts:
+                        content = response.candidates[0].content.parts[0].text
+            except Exception as text_err:
+                print(f"Error accessing response.text: {text_err}")
+                content = None
+                
+            if not content:
+                if response.candidates and response.candidates[0].finish_reason:
+                    reason = response.candidates[0].finish_reason
+                    return {
+                        "error": f"AI could not generate content. Reason: {reason}. This often happens due to safety filters or restricted content.",
+                        "error_type": "safety_error"
+                    }
+                return {
+                    "error": "AI returned an empty response. Please try again or adjust your criteria.",
+                    "error_type": "empty_response"
+                }
+
+            print(f"AI Response received - Length: {len(content)} characters")
+            
+            result = self._clean_json_response(content)
             
             if "error" in result:
                 print(f"JSON parsing error: {result}")
-                print(f"Raw AI response: {response.text[:500]}...")
+                print(f"Raw AI response snippet: {content[:500]}...")
             
             return result
         except Exception as e:
             error_message = str(e).lower()
             print(f"AI Service Error in analyze_resume: {type(e).__name__}: {str(e)}")
             
-            # Check for rate limit errors
             if "429" in str(e) or "quota" in error_message or "rate limit" in error_message or "resource exhausted" in error_message:
                 return {
-                    "error": "Rate limit exceeded. The Gemini API has a limit of 15 requests per minute on the free tier. Please wait a moment and try again.",
+                    "error": "Rate limit exceeded. The Gemini API has a limit for the free tier. Please wait a moment and try again.",
                     "error_type": "rate_limit"
+                }
+            elif "leaked" in error_message:
+                return {
+                    "error": "CRITICAL: Your Gemini API key has been reported as leaked and has been disabled by Google. You MUST generate a new API key from Google AI Studio (https://aistudio.google.com/) and update your .env file.",
+                    "error_type": "leaked_key"
+                }
+            elif "model not found" in error_message or "not found" in error_message:
+                return {
+                    "error": f"AI model '{self.model_name}' not found. Please check your configuration.",
+                    "error_type": "model_error"
                 }
             elif "api key" in error_message or "authentication" in error_message:
                 return {
@@ -213,6 +241,14 @@ class AIService:
         - Make the description inspiring but realistic
         """
 
+        prompt += f"""
+        VALIDATION RULE:
+        - If the {target_career} or {current_profile} appears to be random sequences of characters, gibberish, or nonsensical text (e.g., 'ksdfj', 'asdf', '12345'), you MUST NOT generate a roadmap.
+        - Instead, return a JSON object with this exact structure: {{"error": "GIBBERISH_INPUT", "message": "Please provide a valid career goal."}}
+
+        Generate a VOCATIONAL ROADMAP in JSON format for a candidate transitioning to {target_career}.
+        """
+
         try:
             print(f"Generating roadmap for: {target_career}")
             response = self.client.models.generate_content(
@@ -225,7 +261,6 @@ class AIService:
             error_message = str(e).lower()
             print(f"AI Service Error in generate_career_roadmap: {type(e).__name__}: {str(e)}")
             
-            # Check for rate limit errors
             if "429" in str(e) or "quota" in error_message or "rate limit" in error_message or "resource exhausted" in error_message:
                 return {
                     "error": "Rate limit exceeded. Please wait a moment and try again.",
@@ -248,6 +283,10 @@ class AIService:
             return {"error": "AI service not configured"}
 
         prompt = f"""
+        VALIDATION RULE:
+        - If the job title ('{job_title}') appears to be random sequences of characters, gibberish, or nonsensical text (e.g., 'ksdfj', 'asdf', '12345'), you MUST NOT generate questions.
+        - Instead, return a JSON object with this exact structure: {{"error": "GIBBERISH_INPUT", "message": "Please provide a valid job title."}}
+
         Generate {count} high-quality interview questions for a {level} {job_title} role.
         
         Provide the output in JSON format with this structure:
@@ -269,11 +308,14 @@ class AIService:
         - Cover different aspects: technical skills, problem-solving, communication, past experience
         """
 
-        response = self.client.models.generate_content(
-            model=self.model_name,
-            contents=prompt
-        )
-        return self._clean_json_response(response.text)
+        try:
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=prompt
+            )
+            return self._clean_json_response(response.text)
+        except Exception as e:
+            return self._handle_ai_error(e, "generate_interview_questions")
     
     
     async def evaluate_interview_answer(self, question: str, answer: str, job_title: str = "") -> Dict[str, Any]:
@@ -282,6 +324,10 @@ class AIService:
             return {"error": "AI service not configured"}
 
         prompt = f"""
+        VALIDATION RULE:
+        - If the candidate's answer appears to be random sequences of characters, gibberish, or nonsensical text (e.g., 'ksdfj', 'asdf', '12345'), you MUST NOT evaluate it.
+        - Instead, return a JSON object with this exact structure: {{"error": "GIBBERISH_INPUT", "message": "Please provide a more detailed and valid answer."}}
+
         Evaluate this interview answer:
         
         Question: {question}
@@ -313,18 +359,25 @@ class AIService:
         - The sample answer should demonstrate best practices with proper structure
         """
 
-        response = self.client.models.generate_content(
-            model=self.model_name,
-            contents=prompt
-        )
-        return self._clean_json_response(response.text)
+        try:
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=prompt
+            )
+            return self._clean_json_response(response.text)
+        except Exception as e:
+            return self._handle_ai_error(e, "evaluate_interview_answer")
 
-    async def discover_careers(self, skills: List[str], interests: List[str]) -> List[Dict[str, Any]]:
+    async def discover_careers(self, skills: List[str], interests: List[str]) -> Dict[str, Any]:
         """Recommend career paths based on skills and interests"""
         if not self.client:
-            return []
+            return {"error": "AI service not configured"}
 
         prompt = f"""
+        VALIDATION RULE:
+        - If the skills ({', '.join(skills)}) or interests ({', '.join(interests)}) appear to be random sequences of characters, gibberish, or nonsensical text (e.g., 'ksdfj', 'asdf', '12345'), you MUST NOT recommend careers.
+        - Instead, return a JSON object with this exact structure: {{"error": "GIBBERISH_INPUT", "message": "Please provide valid skills and interests."}}
+
         Based on skills: {', '.join(skills)} and interests: {', '.join(interests)},
         recommend 3-5 career paths.
         
@@ -335,41 +388,76 @@ class AIService:
         - growth_potential: 'High', 'Medium', or 'Stable'
         """
 
-        response = self.client.models.generate_content(
-            model=self.model_name,
-            contents=prompt
-        )
-        result = self._clean_json_response(response.text)
-        return result if isinstance(result, list) else []
+        try:
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=prompt
+            )
+            return self._clean_json_response(response.text)
+        except Exception as e:
+            return self._handle_ai_error(e, "discover_careers")
 
     async def analyze_market_trends(self, sector: str) -> Dict[str, Any]:
         """Analyze current market trends for a given sector"""
         if not self.client:
-            return {}
+            return {"error": "AI service not configured"}
 
         prompt = f"""
+        VALIDATION RULE:
+        - If the sector name ('{sector}') appears to be random sequences of characters, gibberish, or nonsensical text (e.g., 'ksdfj', 'asdf', '12345'), you MUST NOT perform an analysis.
+        - Instead, return a JSON object with this exact structure: {{"error": "GIBBERISH_INPUT", "message": "Please provide a valid industry or sector name."}}
+
         Analyze current job market trends for the {sector} sector.
         
         Provide the output in JSON format with:
-        - growth: int (percentage)
+        - industry: '{sector}'
+        - growth_rate: (percentage or trend)
         - demand_level: 'High', 'Medium', or 'Low'
-        - trending_skills: [list of skills]
-        - salary_range: object with 'min', 'max', 'avg'
-        - top_companies: [list of companies]
+        - top_skills: [list of skill objects with name, growth, demand_index]
+        - remote_availability: 'High', 'Medium', or 'Low'
+        - salary_range: string
         """
 
-        response = self.client.models.generate_content(
-            model=self.model_name,
-            contents=prompt
-        )
-        return self._clean_json_response(response.text)
+        try:
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=prompt
+            )
+            return self._clean_json_response(response.text)
+        except Exception as e:
+            return self._handle_ai_error(e, "analyze_market_trends")
+
+    def _handle_ai_error(self, e: Exception, method_name: str) -> Dict[str, Any]:
+        """Centralized error handling for AI methods"""
+        error_message = str(e).lower()
+        print(f"AI Service Error in {method_name}: {type(e).__name__}: {str(e)}")
+        
+        if "429" in str(e) or "quota" in error_message or "rate limit" in error_message or "resource exhausted" in error_message:
+            return {
+                "error": "Rate limit exceeded. Please wait a moment and try again.",
+                "error_type": "rate_limit"
+            }
+        elif "leaked" in error_message:
+            return {
+                "error": "CRITICAL: Your Gemini API key has been reported as leaked. Please update your .env with a new key.",
+                "error_type": "leaked_key"
+            }
+        elif "api key" in error_message or "authentication" in error_message:
+            return {
+                "error": "API authentication failed. Please check your Gemini API key.",
+                "error_type": "auth_error"
+            }
+        else:
+            return {
+                "error": f"AI service failed: {str(e)}",
+                "error_type": "general_error"
+            }
 
     async def analyze_career_assessment(self, responses: Dict[str, Any]) -> Dict[str, Any]:
         """Analyze career assessment responses and provide career recommendations"""
         if not self.client:
             return {"error": "AI service not configured"}
 
-        # Extract key information from responses
         skills = responses.get('skills', [])
         skill_levels = responses.get('skill_levels', {})
         interests = responses.get('interests', [])
@@ -381,6 +469,10 @@ class AIService:
         preferences = responses.get('preferences', {})
 
         prompt = f"""
+        VALIDATION RULE:
+        - If the skills ({', '.join(skills)}) or interests ({', '.join(interests)}) appear to be random sequences of characters, gibberish, or nonsensical text (e.g., 'ksdfj', 'asdf', '12345'), you MUST NOT perform an analysis.
+        - Instead, return a JSON object with this exact structure: {{"error": "GIBBERISH_INPUT", "message": "Please provide valid skills and interests."}}
+
         Analyze this comprehensive career assessment and provide personalized career recommendations.
 
         CANDIDATE PROFILE:
@@ -397,11 +489,11 @@ class AIService:
         Provide a comprehensive career analysis in JSON format with the following structure:
 
         {{
-            "overall_clarity_score": 85,  // 0-100 score indicating how clear their career direction is
+            "overall_clarity_score": 85,
             "career_matches": [
                 {{
                     "career_title": "Senior Software Engineer",
-                    "match_percentage": 92,  // 0-100 based on skills (40%), interests (30%), values (20%), experience (10%)
+                    "match_percentage": 92,
                     "description": "Brief description of the role",
                     "reasons": [
                         "Strong alignment with technical skills",
@@ -433,7 +525,6 @@ class AIService:
                         ]
                     }}
                 }}
-                // Provide top 5 career matches
             ],
             "skills_breakdown": {{
                 "technical_strength": 85,
@@ -524,5 +615,56 @@ class AIService:
         except Exception as e:
             print(f"Tactical advice error: {e}")
             return {"error": "Failed to generate tactics", "message": str(e)}
+
+    async def generate_cover_letter(self, prompt: str) -> Dict[str, Any]:
+        """Generate a cover letter based on a prompt"""
+        if not self.client:
+            return {"error": "AI service not configured"}
+            
+        try:
+            print("Generating cover letter...")
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=prompt
+            )
+            
+            try:
+                content = response.text
+                if not content:
+                    if response.candidates and response.candidates[0].content.parts:
+                        content = response.candidates[0].content.parts[0].text
+            except Exception as text_err:
+                print(f"Error accessing response.text: {text_err}")
+                content = None
+                
+            if not content:
+                if response.candidates and response.candidates[0].finish_reason:
+                    reason = response.candidates[0].finish_reason
+                    return {"error": f"AI could not generate content. Reason: {reason}. This often happens due to safety filters or restricted content."}
+                return {"error": "AI returned an empty response. Please try again or adjust your criteria."}
+                
+            content = content.strip()
+            content = content.replace('**', '').replace('*', '').replace('##', '').replace('###', '')
+            
+            return {"content": content}
+        except Exception as e:
+            error_message = str(e).lower()
+            print(f"AI Service Error in generate_cover_letter: {type(e).__name__}: {str(e)}")
+            
+            if "429" in str(e) or "quota" in error_message or "rate limit" in error_message:
+                return {
+                    "error": "Rate limit exceeded. The Gemini API has a limit for free tier. Please wait and try again.",
+                    "error_type": "rate_limit"
+                }
+            elif "model not found" in error_message or "not found" in error_message:
+                 return {
+                    "error": f"AI model '{self.model_name}' not found. Please check your configuration.",
+                    "error_type": "model_error"
+                }
+            else:
+                return {
+                    "error": f"Cover letter generation failed: {str(e)}",
+                    "error_type": "general_error"
+                }
 
 ai_service = AIService()

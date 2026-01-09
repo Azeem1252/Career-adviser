@@ -22,8 +22,15 @@ async def generate_roadmap(
     try:
         roadmap = await ai_service.generate_career_roadmap(request.current_profile, request.target_career)
         
-        # Check if AI service returned an error
         if "error" in roadmap:
+            error_msg = roadmap.get("error", "Failed to generate roadmap")
+            
+            if error_msg == "GIBBERISH_INPUT":
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Please provide a valid career goal. Nonsense characters are not allowed."
+                )
+                
             error_type = roadmap.get("error_type", "general_error")
             error_msg = roadmap.get("error", "Failed to generate roadmap")
             
@@ -43,7 +50,6 @@ async def generate_roadmap(
                     detail=error_msg
                 )
         
-        # Save to history
         saved_run = SavedRun(
             user_id=current_user.id,
             title=roadmap.get("title", f"Roadmap: {request.target_career}"),
@@ -54,7 +60,6 @@ async def generate_roadmap(
         db.commit()
         db.refresh(saved_run)
         
-        # Return flattened roadmap with ID
         return {
             "id": saved_run.id,
             "title": roadmap.get("title", f"Roadmap: {request.target_career}"),
@@ -87,27 +92,22 @@ async def get_my_roadmaps(
     for run in runs:
         roadmap_data = json.loads(run.content)
         
-        # Get progress for this roadmap
         progress_records = db.query(RoadmapProgress).filter(
             RoadmapProgress.roadmap_id == run.id,
             RoadmapProgress.user_id == current_user.id
         ).all()
         
-        # Add progress info to stages
         stages = roadmap_data.get('stages', [])
         for i, stage in enumerate(stages):
-            # Map progress if exists
             p = next((p for p in progress_records if p.stage_index == i), None)
             stage["completed"] = p.completed if p else False
             stage["notes"] = p.notes if p else ""
             stage["completed_skills"] = p.completed_skills if p else []
             stage["completed_resources"] = p.completed_resources if p else []
             
-            # Ensure title instead of name (migration support)
             if "name" in stage and "title" not in stage:
                 stage["title"] = stage["name"]
         
-        # Calculate completion stats for the summary block
         total_stages = len(stages)
         completed_stages = sum(1 for s in stages if s.get("completed"))
         completion_percentage = (completed_stages / total_stages * 100) if total_stages > 0 else 0
@@ -137,7 +137,6 @@ async def toggle_stage_completion(
     current_user: User = Depends(get_current_user)
 ):
     """Toggle completion status of a specific stage"""
-    # Verify roadmap belongs to user
     roadmap = db.query(SavedRun).filter(
         SavedRun.id == roadmap_id,
         SavedRun.user_id == current_user.id
@@ -147,7 +146,6 @@ async def toggle_stage_completion(
         print(f"Roadmap not found: id={roadmap_id}, user_id={current_user.id}")
         raise HTTPException(status_code=404, detail="Roadmap not found")
     
-    # Check if progress record exists
     progress = db.query(RoadmapProgress).filter(
         RoadmapProgress.roadmap_id == roadmap_id,
         RoadmapProgress.user_id == current_user.id,
@@ -155,12 +153,10 @@ async def toggle_stage_completion(
     ).first()
     
     if progress:
-        # Toggle completion
         progress.completed = not progress.completed
         progress.completed_at = datetime.now() if progress.completed else None
         progress.updated_at = datetime.now()
     else:
-        # Create new progress record
         progress = RoadmapProgress(
             user_id=current_user.id,
             roadmap_id=roadmap_id,
@@ -192,7 +188,6 @@ async def toggle_skill_completion(
     if not skill_name:
         raise HTTPException(status_code=400, detail="Skill name is required")
         
-    # Verify roadmap belongs to user
     roadmap = db.query(SavedRun).filter(
         SavedRun.id == roadmap_id,
         SavedRun.user_id == current_user.id
@@ -201,7 +196,6 @@ async def toggle_skill_completion(
     if not roadmap:
         raise HTTPException(status_code=404, detail="Roadmap not found")
         
-    # Get or create progress record
     progress = db.query(RoadmapProgress).filter(
         RoadmapProgress.roadmap_id == roadmap_id,
         RoadmapProgress.user_id == current_user.id,
@@ -217,7 +211,6 @@ async def toggle_skill_completion(
         )
         db.add(progress)
         
-    # Ensure completed_skills is a list (use a copy to trigger SQLAlchemy dirty flag)
     current_skills = list(progress.completed_skills or [])
         
     if skill_name in current_skills:
@@ -227,9 +220,6 @@ async def toggle_skill_completion(
         
     progress.completed_skills = current_skills
     progress.updated_at = datetime.now()
-    
-    # Auto-complete stage if all skills are done? 
-    # For now, keep it manual but update timestamp
     
     db.commit()
     db.refresh(progress)
@@ -252,7 +242,6 @@ async def toggle_resource_completion(
     if not resource_name:
         raise HTTPException(status_code=400, detail="Resource name is required")
         
-    # Verify roadmap belongs to user
     roadmap = db.query(SavedRun).filter(
         SavedRun.id == roadmap_id,
         SavedRun.user_id == current_user.id
@@ -261,7 +250,6 @@ async def toggle_resource_completion(
     if not roadmap:
         raise HTTPException(status_code=404, detail="Roadmap not found")
         
-    # Get or create progress record
     progress = db.query(RoadmapProgress).filter(
         RoadmapProgress.roadmap_id == roadmap_id,
         RoadmapProgress.user_id == current_user.id,
@@ -277,7 +265,6 @@ async def toggle_resource_completion(
         )
         db.add(progress)
         
-    # Ensure completed_resources is a list (use a copy to trigger SQLAlchemy dirty flag)
     current_resources = list(progress.completed_resources or [])
         
     if resource_name in current_resources:
@@ -303,7 +290,6 @@ async def get_roadmap_progress(
     current_user: User = Depends(get_current_user)
 ):
     """Get progress for a specific roadmap"""
-    # Verify roadmap belongs to user
     roadmap = db.query(SavedRun).filter(
         SavedRun.id == roadmap_id,
         SavedRun.user_id == current_user.id
@@ -312,13 +298,11 @@ async def get_roadmap_progress(
     if not roadmap:
         raise HTTPException(status_code=404, detail="Roadmap not found")
     
-    # Get all progress records
     progress_records = db.query(RoadmapProgress).filter(
         RoadmapProgress.roadmap_id == roadmap_id,
         RoadmapProgress.user_id == current_user.id
     ).all()
     
-    # Build progress map
     progress_map = {
         p.stage_index: {
             "completed": p.completed,
@@ -343,7 +327,6 @@ async def update_stage_notes(
     """Update notes for a specific stage"""
     notes = request_body.get("notes", "")
     
-    # Verify roadmap belongs to user
     roadmap = db.query(SavedRun).filter(
         SavedRun.id == roadmap_id,
         SavedRun.user_id == current_user.id
@@ -352,7 +335,6 @@ async def update_stage_notes(
     if not roadmap:
         raise HTTPException(status_code=404, detail="Roadmap not found")
     
-    # Get or create progress record
     progress = db.query(RoadmapProgress).filter(
         RoadmapProgress.roadmap_id == roadmap_id,
         RoadmapProgress.user_id == current_user.id,
@@ -384,7 +366,6 @@ async def get_tactical_advice(
     current_user: User = Depends(get_current_user)
 ):
     """Generate tactical advice for a specific stage"""
-    # Verify roadmap belongs to user
     roadmap_record = db.query(SavedRun).filter(
         SavedRun.id == roadmap_id,
         SavedRun.user_id == current_user.id
@@ -417,7 +398,6 @@ async def delete_roadmap(
     current_user: User = Depends(get_current_user)
 ):
     """Delete a roadmap and all associated progress"""
-    # Verify roadmap belongs to user
     roadmap = db.query(SavedRun).filter(
         SavedRun.id == roadmap_id,
         SavedRun.user_id == current_user.id,
@@ -427,13 +407,11 @@ async def delete_roadmap(
     if not roadmap:
         raise HTTPException(status_code=404, detail="Roadmap not found")
     
-    # Delete associated progress records
     db.query(RoadmapProgress).filter(
         RoadmapProgress.roadmap_id == roadmap_id,
         RoadmapProgress.user_id == current_user.id
     ).delete()
     
-    # Delete the roadmap
     db.delete(roadmap)
     db.commit()
     

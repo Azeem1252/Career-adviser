@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body
 from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models.user import User, SavedRun, Project, Certification
 from .auth import get_current_user
 from ..schemas.user import UserResponse, ProjectCreate, ProjectResponse, CertificationCreate, CertificationResponse
+from ..services.ai_service import ai_service
 from pydantic import BaseModel
 from typing import List, Optional
 import json
@@ -25,19 +26,6 @@ class ProfileUpdate(BaseModel):
 
 @router.get("/profile", response_model=UserResponse)
 async def get_profile(current_user: User = Depends(get_current_user)):
-    return current_user
-
-@router.post("/onboard", response_model=UserResponse)
-async def complete_onboarding(
-    preferences: dict,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Mark onboarding as complete and save initial preferences"""
-    current_user.onboarded = True
-    current_user.career_preferences = preferences
-    db.commit()
-    db.refresh(current_user)
     return current_user
 
 @router.put("/profile", response_model=UserResponse)
@@ -78,7 +66,6 @@ async def get_stats(
         "total_activity": total_runs
     }
 
-# Projects Endpoints
 @router.post("/projects", response_model=ProjectResponse)
 async def add_project(
     project: ProjectCreate,
@@ -104,7 +91,6 @@ async def delete_project(
     db.commit()
     return {"message": "Project deleted"}
 
-# Certifications Endpoints
 @router.post("/certifications", response_model=CertificationResponse)
 async def add_certification(
     cert: CertificationCreate,
@@ -136,19 +122,15 @@ async def upload_avatar(
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user)
 ):
-    # Ensure uploads directory exists
     os.makedirs("uploads", exist_ok=True)
     
-    # Create unique filename
     file_extension = file.filename.split(".")[-1] if "." in file.filename else "jpg"
     filename = f"user_{current_user.id}_{int(time.time())}.{file_extension}"
     file_path = os.path.join("uploads", filename)
     
-    # Save file
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
     
-    # Generate URL (use relative path + timestamp for cache busting)
     avatar_url = f"http://localhost:8000/uploads/{filename}"
     
     current_user.avatar_url = avatar_url
@@ -214,7 +196,7 @@ async def export_user_data(
     current_user: User = Depends(get_current_user)
 ):
     """Export all user data as CSV"""
-    from ..models.user import CareerAssessment, JobApplication
+    from ..models.user import CareerAssessment
     from fastapi.responses import StreamingResponse
     from fastapi import HTTPException
     import csv
@@ -222,11 +204,9 @@ async def export_user_data(
     from datetime import datetime
     
     try:
-        # Create CSV content
         output = io.StringIO()
         writer = csv.writer(output)
         
-        # Profile Section
         output.write("=== Profile ===\n")
         writer.writerow(["Field", "Value"])
         writer.writerow(["Name", current_user.name or ""])
@@ -237,7 +217,6 @@ async def export_user_data(
         writer.writerow(["GitHub", current_user.github or ""])
         writer.writerow(["Website", current_user.website or ""])
         
-        # Handle skills safely
         skills_str = ""
         if current_user.skills:
             if isinstance(current_user.skills, list):
@@ -249,11 +228,9 @@ async def export_user_data(
         writer.writerow(["Member Since", str(current_user.created_at) if current_user.created_at else ""])
         output.write("\n")
         
-        # Projects Section
         output.write("=== Projects ===\n")
         writer.writerow(["Title", "Description", "Link", "Technologies", "Created At"])
         for p in current_user.projects:
-            # technologies is stored as String/Text, not list
             tech_str = p.technologies or ""
             writer.writerow([
                 p.title or "",
@@ -264,7 +241,6 @@ async def export_user_data(
             ])
         output.write("\n")
         
-        # Certifications Section
         output.write("=== Certifications ===\n")
         writer.writerow(["Name", "Issuing Organization", "Credential ID", "Credential URL", "Created At"])
         for c in current_user.certifications:
@@ -277,7 +253,6 @@ async def export_user_data(
             ])
         output.write("\n")
         
-        # Assessments Section
         assessments = db.query(CareerAssessment).filter(
             CareerAssessment.user_id == current_user.id
         ).all()
@@ -290,25 +265,7 @@ async def export_user_data(
             ])
         output.write("\n")
         
-        # Job Applications Section
-        job_apps = db.query(JobApplication).filter(
-            JobApplication.user_id == current_user.id
-        ).all()
-        output.write("=== Job Applications ===\n")
-        writer.writerow(["Company", "Job Title", "Status", "Location", "Salary", "Applied At", "Job URL", "Notes"])
-        for j in job_apps:
-            writer.writerow([
-                j.company_name or "",
-                j.job_title or "",
-                j.status or "",
-                j.location or "",
-                j.salary_expectation or "",
-                str(j.applied_at) if j.applied_at else "",
-                j.job_url or "",
-                j.notes or ""
-            ])
         
-        # Return as CSV file download
         filename = f"career-adviser-data-{datetime.now().strftime('%Y-%m-%d')}.csv"
         
         return StreamingResponse(
@@ -320,4 +277,3 @@ async def export_user_data(
         import logging
         logging.error(f"Error exporting user data: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to generate data export. Potential model mismatch detected.")
-

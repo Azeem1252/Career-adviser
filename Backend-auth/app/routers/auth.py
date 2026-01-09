@@ -24,7 +24,6 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 security = HTTPBearer()
 
 
-# Helper function to get current user from token
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db)
@@ -66,7 +65,6 @@ async def get_me(current_user: User = Depends(get_current_user)):
 async def register(user_data: UserCreate, db: Session = Depends(get_db)):
     """Register a new user"""
     
-    # Check if user already exists
     existing_user = db.query(User).filter(User.email == user_data.email).first()
     if existing_user:
         raise HTTPException(
@@ -74,8 +72,6 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
             detail="Email already registered"
         )
     
-
-    # Create new user
     hashed_password = get_password_hash(user_data.password)
     db_user = User(
         email=user_data.email,
@@ -87,14 +83,12 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(db_user)
     
-    # Send verification email if email service is configured
     try:
         from ..core.email import mail, create_message
         from ..core.email_templates import get_verification_email_template
         
         verification_token = create_verification_token(db_user.email)
         
-        # Store verification token in DB
         token_hash = hashlib.sha256(verification_token.encode()).hexdigest()
         db_token = EmailToken(
             token_hash=token_hash,
@@ -118,10 +112,8 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
             )
             await mail.send_message(message)
     except Exception as e:
-        # Log error but don't fail registration
         print(f"Failed to send verification email: {e}")
     
-    # Do not return tokens for automatic login if verification is required
     return {
         "access_token": "",
         "refresh_token": "",
@@ -135,7 +127,6 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
 async def login(user_credentials: UserLogin, db: Session = Depends(get_db)):
     """Login user and return access and refresh tokens"""
     
-    # Find user
     user = db.query(User).filter(User.email == user_credentials.email).first()
     
     if not user or not verify_password(user_credentials.password, user.hashed_password):
@@ -156,11 +147,9 @@ async def login(user_credentials: UserLogin, db: Session = Depends(get_db)):
             detail="Account is inactive"
         )
     
-    # Create tokens
     access_token = create_access_token(data={"sub": user.email, "user_id": user.id})
     refresh_token = create_refresh_token(data={"sub": user.email, "user_id": user.id})
     
-    # Store refresh token in DB
     refresh_token_hash = hashlib.sha256(refresh_token.encode()).hexdigest()
     db_refresh_token = RefreshToken(
         token_hash=refresh_token_hash,
@@ -199,11 +188,9 @@ async def refresh_token(token_data: RefreshTokenRequest, db: Session = Depends(g
             detail="User not found or inactive"
         )
     
-    # Create new tokens
     access_token = create_access_token(data={"sub": user.email, "user_id": user.id})
     new_refresh_token = create_refresh_token(data={"sub": user.email, "user_id": user.id})
     
-    # Revoke old refresh token and store new one
     old_token_hash = hashlib.sha256(token_data.refresh_token.encode()).hexdigest()
     db_old_token = db.query(RefreshToken).filter(RefreshToken.token_hash == old_token_hash).first()
     
@@ -255,7 +242,6 @@ async def verify_email(request: VerifyEmailRequest, db: Session = Depends(get_db
             detail="Invalid or expired verification token"
         )
     
-    # Verify token in DB
     token_hash = hashlib.sha256(request.token.encode()).hexdigest()
     db_token = db.query(EmailToken).filter(
         EmailToken.token_hash == token_hash,
@@ -283,12 +269,10 @@ async def verify_email(request: VerifyEmailRequest, db: Session = Depends(get_db
         db.commit()
         return {"message": "Email already verified"}
     
-    # Mark user as verified and delete token
     user.is_verified = True
     db.delete(db_token)
     db.commit()
     
-    # Send welcome email
     try:
         from ..core.email import mail, create_message
         from ..core.email_templates import get_welcome_email_template
@@ -313,7 +297,6 @@ async def resend_verification(request: EmailRequest, db: Session = Depends(get_d
     user = db.query(User).filter(User.email == request.email).first()
 
     if not user:
-        # Don't reveal if email exists or not
         return {"message": "If the email exists, a verification link has been sent"}
 
     if user.is_verified:
@@ -331,7 +314,6 @@ async def resend_verification(request: EmailRequest, db: Session = Depends(get_d
 
         verification_token = create_verification_token(user.email)
         
-        # Store verification token in DB
         token_hash = hashlib.sha256(verification_token.encode()).hexdigest()
         db_token = EmailToken(
             token_hash=token_hash,
@@ -374,11 +356,9 @@ async def forgot_password(request: EmailRequest, db: Session = Depends(get_db)):
     
     user = db.query(User).filter(User.email == request.email).first()
     
-    # Don't reveal if email exists or not for security
     if not user:
         return {"message": "If the email exists, a password reset link has been sent"}
     
-    # Rate limiting: Check if a token was sent in the last 60 seconds
     from datetime import datetime, timedelta
     recent_token = db.query(EmailToken).filter(
         EmailToken.email == user.email,
@@ -392,7 +372,6 @@ async def forgot_password(request: EmailRequest, db: Session = Depends(get_db)):
             detail="Too many requests. Please wait 60 seconds before requesting another link."
         )
     
-    # Send password reset email
     try:
         from ..core.email import mail, create_message
         from ..core.email_templates import get_password_reset_email_template
@@ -405,7 +384,6 @@ async def forgot_password(request: EmailRequest, db: Session = Depends(get_db)):
         
         reset_token = create_password_reset_token(user.email)
         
-        # Store reset token in DB
         token_hash = hashlib.sha256(reset_token.encode()).hexdigest()
         db_token = EmailToken(
             token_hash=token_hash,
@@ -454,7 +432,6 @@ async def reset_password(request: PasswordResetRequest, db: Session = Depends(ge
             detail="Invalid or expired reset token"
         )
     
-    # Verify token in DB
     token_hash = hashlib.sha256(request.token.encode()).hexdigest()
     db_token = db.query(EmailToken).filter(
         EmailToken.token_hash == token_hash,
@@ -477,7 +454,6 @@ async def reset_password(request: PasswordResetRequest, db: Session = Depends(ge
             detail="User not found"
         )
     
-    # Update password and delete token
     user.hashed_password = get_password_hash(request.new_password)
     db.delete(db_token)
     db.commit()
@@ -501,14 +477,12 @@ async def change_password(
 ):
     """Change password for authenticated user"""
     
-    # Verify current password
     if not verify_password(request.current_password, current_user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Current password is incorrect"
         )
     
-    # Update to new password
     current_user.hashed_password = get_password_hash(request.new_password)
     db.commit()
     

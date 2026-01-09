@@ -50,14 +50,7 @@ export default function AuthPage({ searchParams }: { searchParams: Promise<{ mod
         try {
             await login({ email: loginEmail, password: loginPassword });
             addToast('Login successful!', 'success');
-
-            // Check onboarding status
-            const user = useAuthStore.getState().user;
-            if (user && !user.onboarded) {
-                router.push('/onboarding');
-            } else {
-                router.push('/dashboard');
-            }
+            router.push('/dashboard');
         } catch (error: any) {
             addToast(error.response?.data?.detail || 'Login failed', 'error');
         }
@@ -76,21 +69,11 @@ export default function AuthPage({ searchParams }: { searchParams: Promise<{ mod
 
             // If the backend didn't return tokens, it means verification is required
             if (!useAuthStore.getState().isAuthenticated) {
-                addToast(response.message || 'Account created! Please verify your email.', 'success', 10000);
-                // Switch to login mode
-                setIsActive(false);
+                router.push('/auth/verify-request');
                 return;
             }
-
-            addToast('Account created! Let\'s setup your profile.', 'success');
-
-            // Check onboarding status (should be false for new users)
-            const user = useAuthStore.getState().user;
-            if (user && !user.onboarded) {
-                router.push('/onboarding');
-            } else {
-                router.push('/dashboard');
-            }
+            addToast('Account created!', 'success');
+            router.push('/dashboard');
         } catch (error: any) {
             addToast(error.response?.data?.detail || 'Registration failed', 'error');
         }

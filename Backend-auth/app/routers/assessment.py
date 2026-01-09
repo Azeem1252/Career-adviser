@@ -17,7 +17,6 @@ async def start_assessment(
     current_user: User = Depends(get_current_user)
 ):
     """Start a new assessment or return the current incomplete one"""
-    # Check if an incomplete assessment already exists for this session/user
     existing = db.query(CareerAssessment).filter(
         CareerAssessment.user_id == current_user.id,
         CareerAssessment.completed_at == None
@@ -30,10 +29,9 @@ async def start_assessment(
             "created_at": existing.created_at
         }
     
-    # Create new assessment if none are incomplete
     assessment = CareerAssessment(
         user_id=current_user.id,
-        responses="{}",  # Empty JSON
+        responses="{}",
         assessment_type="full_diagnostic"
     )
     db.add(assessment)
@@ -62,16 +60,13 @@ async def submit_assessment(
     if not assessment:
         raise HTTPException(status_code=404, detail="Assessment not found")
     
-    # Save responses
     assessment.responses = json.dumps(request.responses)
     assessment.completed_at = datetime.now()
     
-    # Trigger AI analysis
     try:
         results = await ai_service.analyze_career_assessment(request.responses)
         assessment.results = json.dumps(results)
         
-        # Update user's career preferences based on assessment results
         matches = results.get("career_matches", [])
         if matches:
             top_matches = []
@@ -81,12 +76,12 @@ async def submit_assessment(
                     "match": m.get("match_percentage"),
                     "source": "assessment"
                 })
-            current_user.career_preferences = {
-                **(current_user.career_preferences or {}),
-                "top_recommendations": top_matches,
-                "last_assessment_id": assessment.id
-            }
-            db.add(current_user)
+                current_user.career_preferences = {
+                    **(current_user.career_preferences or {}),
+                    "top_recommendations": top_matches,
+                    "last_assessment_id": assessment.id
+                }
+                db.add(current_user)
             
     except Exception as e:
         print(f"AI analysis error: {e}")
@@ -140,62 +135,106 @@ async def get_latest_assessment(
     current_user: User = Depends(get_current_user)
 ):
     """Get user's most recent assessment with full profile insights"""
-    assessment = db.query(CareerAssessment).filter(
-        CareerAssessment.user_id == current_user.id,
-        CareerAssessment.completed_at != None
-    ).order_by(CareerAssessment.created_at.desc()).first()
-    
-    if not assessment:
-        return None
-    
-    # Parse AI results
-    results = json.loads(assessment.results) if assessment.results else {}
-    
-    # Extract roles and insights for the UI
-    matches = results.get("career_matches", [])
-    recommended_roles = [
-        {
-            "title": m.get("career_title"),
-            "match": m.get("match_percentage"),
-            "salary": m.get("salary_range", "N/A"),
-            "demand": m.get("growth_outlook", "Medium").split(' ')[0] if m.get("growth_outlook") else "Medium"
+    try:
+        assessment = db.query(CareerAssessment).filter(
+            CareerAssessment.user_id == current_user.id,
+            CareerAssessment.completed_at != None
+        ).order_by(CareerAssessment.created_at.desc()).first()
+        
+        if not assessment:
+            return None
+        
+        try:
+            if assessment.results is None:
+                results = {}
+            elif isinstance(assessment.results, dict):
+                results = assessment.results
+            elif isinstance(assessment.results, str):
+                results = json.loads(assessment.results)
+            else:
+                results = {}
+        except Exception:
+            results = {}
+        
+        matches = results.get("career_matches", [])
+        recommended_roles = []
+        for m in matches:
+            try:
+                growth_outlook = m.get("growth_outlook", "Medium")
+                demand = "Medium"
+                if growth_outlook and isinstance(growth_outlook, str):
+                    parts = growth_outlook.split(' ')
+                    demand = parts[0] if parts else "Medium"
+                
+                recommended_roles.append({
+                    "title": m.get("career_title"),
+                    "match": m.get("match_percentage"),
+                    "salary": m.get("salary_range", "N/A"),
+                    "demand": demand
+                })
+            except Exception:
+                pass
+        
+        skills_data = results.get("skills_breakdown", {})
+        strengths = skills_data.get("top_strengths", [])
+        
+        next_steps = []
+        if matches:
+            try:
+                action_plan = matches[0].get("action_plan", {})
+                next_steps = action_plan.get("immediate", []) if isinstance(action_plan, dict) else []
+            except Exception:
+                pass
+        
+        user_skills = current_user.skills or []
+        technical_score = 0
+        try:
+            technical_score = int(skills_data.get("technical_strength", min(len(user_skills) * 15, 95)))
+        except (ValueError, TypeError):
+            technical_score = min(len(user_skills) * 15, 95)
+            
+        soft_skills_score = 0
+        try:
+            soft_skills_score = int(skills_data.get("soft_skills_strength", 78))
+        except (ValueError, TypeError):
+            soft_skills_score = 78
+            
+        market_fit_score = 0
+        try:
+            market_fit_score = int(results.get("interests_alignment", {}).get("career_fit_score", 85))
+        except (ValueError, TypeError, AttributeError):
+            market_fit_score = 85
+            
+        overall_score = 0
+        try:
+            overall_score = int(results.get("overall_clarity_score", round((technical_score + soft_skills_score + market_fit_score) / 3)))
+        except (ValueError, TypeError):
+            overall_score = round((technical_score + soft_skills_score + market_fit_score) / 3)
+        
+        return {
+            "assessment_id": assessment.id,
+            "completed": True,
+            "completed_at": assessment.completed_at,
+            "created_at": assessment.created_at,
+            "recommended_roles": recommended_roles,
+            "strengths": strengths,
+            "next_steps": next_steps,
+            "scores": {
+                "technical_score": technical_score,
+                "soft_skills_score": soft_skills_score,
+                "market_fit_score": market_fit_score,
+                "overall_score": overall_score
+            },
+            "results": results
         }
-        for m in matches
-    ]
-    
-    # Extract strengths and next steps
-    skills_data = results.get("skills_breakdown", {})
-    strengths = skills_data.get("top_strengths", [])
-    
-    # Get next steps from top career match action plan
-    next_steps = []
-    if matches:
-        action_plan = matches[0].get("action_plan", {})
-        next_steps = action_plan.get("immediate", [])
-    
-    # Calculate competency scores
-    user_skills = current_user.skills or []
-    technical_score = skills_data.get("technical_strength", min(len(user_skills) * 15, 95))
-    soft_skills_score = skills_data.get("soft_skills_strength", 78)
-    market_fit_score = results.get("interests_alignment", {}).get("career_fit_score", 85)
-    overall_score = results.get("overall_clarity_score", round((technical_score + soft_skills_score + market_fit_score) / 3))
-    
-    return {
-        "assessment_id": assessment.id,
-        "completed": True,
-        "completed_at": assessment.completed_at,
-        "created_at": assessment.created_at,
-        "recommended_roles": recommended_roles,
-        "strengths": strengths,
-        "next_steps": next_steps,
-        "scores": {
-            "technical_score": technical_score,
-            "soft_skills_score": soft_skills_score,
-            "market_fit_score": market_fit_score,
-            "overall_score": overall_score
-        },
-        "results": results  # Keep full results for deep UI access
-    }
+    except Exception as e:
+        import traceback
+        print(f"ERROR: General failure in get_latest_assessment: {e}")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Could not retrieve assessment results: {str(e)}"
+        )
 
 @router.get("/history")
 async def get_assessment_history(

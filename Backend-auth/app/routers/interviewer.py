@@ -27,12 +27,21 @@ async def generate_mock_questions(
 ):
     """Generate mock interview questions for a specific role"""
     try:
-        questions_data = await ai_service.generate_interview_questions(
+        data = await ai_service.generate_interview_questions(
             job_title=request.job_title,
             level=request.difficulty,
             count=request.count
         )
-        return questions_data
+        
+        if isinstance(data, dict) and data.get("error") == "GIBBERISH_INPUT":
+             raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Please provide a valid job title."
+            )
+            
+        return data
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -53,7 +62,12 @@ async def evaluate_answer(
             job_title=request.job_title
         )
         
-        # Save evaluation to history
+        if isinstance(evaluation, dict) and evaluation.get("error") == "GIBBERISH_INPUT":
+             raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=evaluation.get("message", "Please provide a valid answer.")
+            )
+        
         saved_run = SavedRun(
             user_id=current_user.id,
             title=f"Interview Feedback: {request.question[:30]}...",
@@ -65,6 +79,8 @@ async def evaluate_answer(
         db.refresh(saved_run)
         
         return evaluation
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

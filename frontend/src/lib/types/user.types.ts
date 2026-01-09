@@ -37,7 +37,6 @@ export interface User {
     updated_at?: string | null;
     skills?: string[];
     xp?: number;
-    onboarded: boolean;
     career_preferences?: any;
     profile_summary?: string | null;
     avatar_url?: string | null;

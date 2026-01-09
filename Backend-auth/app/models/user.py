@@ -13,7 +13,6 @@ class User(Base):
     hashed_password = Column(String, nullable=False)
     is_active = Column(Boolean, default=True)
     is_verified = Column(Boolean, default=False)
-    # Professional career fields
     bio = Column(Text, nullable=True)
     location = Column(String, nullable=True)
     linkedin = Column(String, nullable=True)
@@ -22,21 +21,17 @@ class User(Base):
     skills = Column(JSON, nullable=True)
     profile_summary = Column(Text, nullable=True)
     avatar_url = Column(String, nullable=True)
-    onboarded = Column(Boolean, default=False)
     career_preferences = Column(JSON, nullable=True)
-    # Notification preferences
     notification_email = Column(Boolean, default=True)
     notification_push = Column(Boolean, default=False)
     notification_weekly = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-    # Relationships
     refresh_tokens = relationship("RefreshToken", back_populates="user", cascade="all, delete-orphan")
     saved_runs = relationship("SavedRun", back_populates="user", cascade="all, delete-orphan")
     projects = relationship("Project", back_populates="user", cascade="all, delete-orphan")
     certifications = relationship("Certification", back_populates="user", cascade="all, delete-orphan")
-    job_applications = relationship("JobApplication", back_populates="user", cascade="all, delete-orphan")
 
 
 class RefreshToken(Base):
@@ -60,7 +55,7 @@ class Project(Base):
     title = Column(String, nullable=False)
     description = Column(Text, nullable=True)
     link = Column(String, nullable=True)
-    technologies = Column(String, nullable=True)  # Comma-separated or JSON string
+    technologies = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     user = relationship("User", back_populates="projects")
@@ -88,7 +83,7 @@ class EmailToken(Base):
     id = Column(Integer, primary_key=True, index=True)
     token_hash = Column(String, index=True, nullable=False)
     email = Column(String, index=True, nullable=False)
-    token_type = Column(String, nullable=False)  # 'verification' or 'password_reset'
+    token_type = Column(String, nullable=False)
     expires_at = Column(DateTime, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
@@ -97,7 +92,7 @@ class RateLimitLog(Base):
     __tablename__ = "rate_limit_logs"
 
     id = Column(Integer, primary_key=True, index=True)
-    identifier = Column(String, index=True, nullable=False)  # IP or User ID
+    identifier = Column(String, index=True, nullable=False)
     endpoint = Column(String, nullable=False)
     timestamp = Column(DateTime(timezone=True), server_default=func.now())
 
@@ -108,8 +103,8 @@ class SavedRun(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     title = Column(String, nullable=False)
-    content = Column(Text, nullable=False)  # JSON or plain text analysis
-    run_type = Column(String, nullable=False)  # 'career_analysis', 'skill_assessment', etc.
+    content = Column(Text, nullable=False)
+    run_type = Column(String, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     user = relationship("User", back_populates="saved_runs")
@@ -121,16 +116,15 @@ class RoadmapProgress(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     roadmap_id = Column(Integer, ForeignKey("saved_runs.id", ondelete="CASCADE"), nullable=False)
-    stage_index = Column(Integer, nullable=False)  # 0-based index of the stage
+    stage_index = Column(Integer, nullable=False)
     completed = Column(Boolean, default=False)
     notes = Column(Text, nullable=True)
-    completed_skills = Column(JSON, nullable=True)  # List of skill names completed
-    completed_resources = Column(JSON, nullable=True)  # List of resource names completed
+    completed_skills = Column(JSON, nullable=True)
+    completed_resources = Column(JSON, nullable=True)
     completed_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-    # Relationships
     user = relationship("User")
     roadmap = relationship("SavedRun")
 
@@ -140,32 +134,11 @@ class CareerAssessment(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    responses = Column(Text, nullable=False)  # JSON string of all responses
-    results = Column(Text, nullable=True)  # JSON string of AI analysis results
-    assessment_type = Column(String, default="initial")  # 'initial', 'onboarding', or 'deep_skill'
+    responses = Column(Text, nullable=False)
+    results = Column(Text, nullable=True)
+    assessment_type = Column(String, default="initial")
     completed_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-    # Relationships
     user = relationship("User")
-
-
-class JobApplication(Base):
-    __tablename__ = "job_applications"
-
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    company_name = Column(String, nullable=False)
-    job_title = Column(String, nullable=False)
-    status = Column(String, default="Wishlist")  # 'Wishlist', 'Applied', 'Interviewing', 'Offer', 'Rejected'
-    applied_at = Column(DateTime(timezone=True), nullable=True)
-    job_url = Column(String, nullable=True)
-    notes = Column(Text, nullable=True)
-    salary_expectation = Column(String, nullable=True)
-    location = Column(String, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-
-    # Relationships
-    user = relationship("User", back_populates="job_applications")

@@ -6,19 +6,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from .core.config import settings
 from .database import engine, Base
-from .routers import auth, saved_runs, careers, analyzer, interviewer, roadmaps, users, assessment, job_tracker
+from .routers import auth, saved_runs, careers, analyzer, interviewer, roadmaps, users, assessment
 
-# Create database tables
 Base.metadata.create_all(bind=engine)
 
-# Initialize FastAPI app
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.VERSION,
     description="Professional Career Advising API for Carre Adviser"
 )
 
-# Configure CORS (Moved up for better clarity)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -36,7 +33,6 @@ app.add_middleware(
     expose_headers=["*"],
 )
 
-# Include routers
 app.include_router(auth.router)
 app.include_router(saved_runs.router)
 app.include_router(careers.router)
@@ -45,9 +41,7 @@ app.include_router(interviewer.router)
 app.include_router(roadmaps.router)
 app.include_router(users.router)
 app.include_router(assessment.router)
-app.include_router(job_tracker.router)
 
-# Mount uploads directory to serve profile images
 if not os.path.exists("uploads"):
     os.makedirs("uploads")
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")

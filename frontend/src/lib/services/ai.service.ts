@@ -230,14 +230,6 @@ class AIService {
     }
 
     /**
-     * Complete onboarding and set initial preferences
-     */
-    async completeOnboarding(preferences: any): Promise<any> {
-        const response = await api.post('/users/onboard', preferences);
-        return response.data;
-    }
-
-    /**
      * Get user's latest assessment
      */
     async getLatestAssessment(): Promise<any> {

@@ -83,8 +83,8 @@ export default function InterviewerPage() {
             setMessages([]);
             setCurrentQuestionIndex(0);
             setIsInterviewComplete(false);
-        } catch (err) {
-            toastError("Failed to start interview session");
+        } catch (err: any) {
+            toastError(err.response?.data?.detail || "Failed to start interview session");
         } finally {
             setIsLoading(false);
         }
@@ -146,9 +146,9 @@ export default function InterviewerPage() {
                 setIsInterviewComplete(true);
                 saveSession();
             }
-        } catch (err) {
+        } catch (err: any) {
             console.error('Evaluation error:', err);
-            toastError("Failed to evaluate answer");
+            toastError(err.response?.data?.detail || "Failed to evaluate answer");
         } finally {
             setIsLoading(false);
         }
@@ -365,24 +365,47 @@ export default function InterviewerPage() {
                             animate={{ opacity: 1 }}
                             className="space-y-6"
                         >
-                            {/* Progress Header */}
-                            <div className="p-4 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl shadow-lg">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-                                        <div>
-                                            <h2 className="text-xl font-black text-white">Interview Active</h2>
-                                            <p className="text-xs font-bold text-blue-100">{jobTitle}</p>
+                            {/* Progress Header - Theme Matched */}
+                            <div className="relative p-7 rounded-[2rem] overflow-hidden group bg-gradient-to-r from-blue-600 to-indigo-700 shadow-2xl shadow-blue-500/20 border border-white/10">
+                                {/* Subtle Depth Layer */}
+                                <div className="absolute inset-0 bg-white/5 opacity-40" />
+                                <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 blur-3xl rounded-full -translate-y-1/2 translate-x-1/2" />
+
+                                <div className="relative flex items-center justify-between">
+                                    <div className="flex items-center gap-6">
+                                        <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center shadow-lg transition-transform duration-300 group-hover:scale-105">
+                                            <Video className="w-7 h-7 text-white" />
+                                            <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-emerald-400 border-[3px] border-blue-600 shadow-md" />
+                                        </div>
+
+                                        <div className="space-y-1.5">
+                                            <div className="flex items-center gap-3">
+                                                <h2 className="text-3xl font-black text-white tracking-tight leading-none">Interview Active</h2>
+                                                <div className="px-2.5 py-1 rounded-full bg-white/10 border border-white/20 text-[9px] font-black text-white uppercase tracking-[0.2em]">Live</div>
+                                            </div>
+                                            <p className="text-sm font-bold text-blue-100 tracking-wide opacity-90">{jobTitle}</p>
                                         </div>
                                     </div>
-                                    <div className="text-right bg-white/20 backdrop-blur-sm px-4 py-2 rounded-xl border border-white/30">
-                                        <p className="text-xs font-bold text-blue-100 uppercase tracking-wider">Progress</p>
-                                        <p className="text-2xl font-black text-white">
-                                            {currentQuestionIndex + 1}
-                                            <span className="text-base text-blue-200 mx-1">/</span>
-                                            {questions.length}
-                                        </p>
+
+                                    <div className="relative">
+                                        <div className="bg-white/10 backdrop-blur-xl px-8 py-4 rounded-3xl border border-white/20 flex flex-col items-center min-w-[120px]">
+                                            <p className="text-[10px] font-black text-blue-100/70 uppercase tracking-[0.3em] mb-1.5 leading-none">Progress</p>
+                                            <div className="flex items-baseline gap-1.5">
+                                                <span className="text-4xl font-black text-white tabular-nums leading-none">{currentQuestionIndex + 1}</span>
+                                                <span className="text-base font-bold text-blue-100 opacity-40">/ {questions.length}</span>
+                                            </div>
+                                        </div>
                                     </div>
+                                </div>
+
+                                {/* Slim Visual Progress Bar */}
+                                <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/10">
+                                    <motion.div
+                                        initial={{ width: 0 }}
+                                        animate={{ width: `${((currentQuestionIndex + 1) / questions.length) * 100}%` }}
+                                        transition={{ type: "spring", stiffness: 60, damping: 15 }}
+                                        className="h-full bg-white shadow-[0_0_15px_rgba(255,255,255,0.6)]"
+                                    />
                                 </div>
                             </div>
 
@@ -442,7 +465,6 @@ export default function InterviewerPage() {
                                             <>
                                                 <Send className="w-6 h-6" />
                                                 Submit Answer
-                                                <ArrowRight className="w-6 h-6" />
                                             </>
                                         )}
                                     </button>
